@@ -1,0 +1,37 @@
+# Actualiza el horario de Cercanías RENFE de Cantabria (núcleo 62).
+# Descarga el GTFS estático nacional de RENFE, lo filtra con
+# tools/build_cantabria.py y commitea data/cantabria.json si cambió.
+# La app tusTUS+ lo recoge sin recompilar vía raw.githubusercontent.
+
+name: Actualizar datos RENFE Cantabria
+
+on:
+  schedule:
+    - cron: '0 4 * * 1'      # lunes 04:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Generar subconjunto Cantabria
+        run: python tools/build_cantabria.py
+
+      - name: Commit si hay cambios
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/cantabria.json
+          git diff --cached --quiet || git commit -m "data: actualizar horario RENFE Cantabria"
+          git push

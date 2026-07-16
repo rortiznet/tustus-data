@@ -1,0 +1,46 @@
+# Actualiza las estaciones de TorreBici (Torrelavega) scrapeando
+# torrebici.es/mapa.php con tools/build_torrebici.py; commitea
+# data/torrebici.json si cambió.
+#
+# Esta workflow además escribe data/.last-run en CADA ejecución (heartbeat):
+# GitHub pausa los schedules tras 60 días sin actividad en el repo, y si los
+# datos no cambian en meses no habría commits. El heartbeat semanal lo evita.
+#
+# El script también regenera src/app/services/torrebici-stations.ts (snapshot
+# embebido del repo de la app); aquí se escribe pero NO se commitea (gitignored).
+
+name: Actualizar estaciones TorreBici
+
+on:
+  schedule:
+    - cron: '15 4 * * 1'      # lunes 04:15 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Scrapear estaciones TorreBici
+        run: |
+          mkdir -p src/app/services
+          python tools/build_torrebici.py
+
+      - name: Commit (datos + heartbeat)
+        run: |
+          date -u +%Y-%m-%dT%H:%M:%SZ > data/.last-run
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/torrebici.json data/.last-run
+          git diff --cached --quiet || git commit -m "data: actualizar estaciones TorreBici"
+          git push

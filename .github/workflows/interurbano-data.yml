@@ -1,0 +1,61 @@
+# Actualiza el horario del autobús interurbano de Cantabria desde el NAP
+# (nap.transportes.gob.es) usando su API oficial. Configura en
+# Settings → Secrets and variables → Actions el secreto
+#   NAP_API_KEY   (genérala gratis en el NAP: Editar Perfil → nombre de app)
+# Hasta que exista, la workflow termina en verde sin hacer nada (aviso en el log).
+
+name: Actualizar horario interurbano Cantabria
+
+on:
+  schedule:
+    - cron: '30 4 * * 1'      # lunes 04:30 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Comprobar secretos del NAP
+        id: napcheck
+        env:
+          NAP_API_KEY: ${{ secrets.NAP_API_KEY }}
+        run: |
+          if [ -z "$NAP_API_KEY" ]; then
+            echo "::warning::Secreto NAP_API_KEY no configurado; se salta la actualización."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Setup Python
+        if: steps.napcheck.outputs.ready == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Descargar GTFS del NAP
+        if: steps.napcheck.outputs.ready == 'true'
+        env:
+          NAP_API_KEY: ${{ secrets.NAP_API_KEY }}
+        run: tools/fetch_nap_gtfs.sh /tmp/bus_cantabria.zip
+
+      - name: Compactar a JSON
+        if: steps.napcheck.outputs.ready == 'true'
+        run: |
+          mkdir -p src/assets/interurbano
+          python tools/build_interurbano.py /tmp/bus_cantabria.zip
+
+      - name: Commit si hay cambios
+        if: steps.napcheck.outputs.ready == 'true'
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/interurbano.json
+          git diff --cached --quiet || git commit -m "data: actualizar horario interurbano Cantabria"
+          git push
