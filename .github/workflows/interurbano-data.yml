@@ -58,4 +58,5 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add data/interurbano.json
           git diff --cached --quiet || git commit -m "data: actualizar horario interurbano Cantabria"
+          git pull --rebase origin main
           git push

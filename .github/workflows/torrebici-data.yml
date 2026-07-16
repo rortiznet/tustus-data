@@ -43,4 +43,5 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add data/torrebici.json data/.last-run
           git diff --cached --quiet || git commit -m "data: actualizar estaciones TorreBici"
+          git pull --rebase origin main
           git push
