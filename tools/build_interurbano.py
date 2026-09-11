@@ -116,6 +116,47 @@ def build(zip_bytes: bytes) -> dict:
     }
 
 
+# Cantabria, con holgura. No es un recorte fino: solo sirve para distinguir
+# "esto es Cantabria" de "esto es otra provincia".
+CANTABRIA_BBOX = (42.7, 43.6, -5.0, -3.0)   # lat_min, lat_max, lon_min, lon_max
+MINIMO_DENTRO = 0.80
+
+
+def comprueba_region(data: dict) -> None:
+    """
+    Se planta si el GTFS no es de Cantabria.
+
+    Existe porque ya pasó: el id del conjunto de datos del NAP (1363) se usó
+    como id de fichero, y el fichero 1363 resultó ser el GTFS de la isla de
+    Menorca. La descarga devolvió 200, el ZIP era válido y el GTFS estaba bien
+    formado, así que esto generó un JSON impecable de otra provincia que se
+    publicó durante dos meses sin que nada protestara.
+
+    No se puede exigir que TODAS las paradas caigan dentro: los operadores
+    cántabros tienen líneas de largo recorrido y hay paradas legítimas en
+    Levante, Logroño, Teruel y hasta en París-Bercy. Por eso se mira la
+    proporción, que con datos buenos ronda el 98%.
+    """
+    lat_min, lat_max, lon_min, lon_max = CANTABRIA_BBOX
+    coords = [(v[1], v[2]) for v in data["stops"].values()
+              if v[1] is not None and v[2] is not None]
+    if not coords:
+        raise SystemExit("ERROR: el GTFS no trae coordenadas de parada.")
+    dentro = sum(1 for la, lo in coords
+                 if lat_min <= la <= lat_max and lon_min <= lo <= lon_max)
+    fraccion = dentro / len(coords)
+    print(f"Paradas dentro de Cantabria: {dentro}/{len(coords)} ({fraccion:.1%})")
+    if fraccion < MINIMO_DENTRO:
+        operadores = ", ".join(list(data["agencies"].values())[:4])
+        raise SystemExit(
+            f"ERROR: solo el {fraccion:.1%} de las paradas cae en Cantabria "
+            f"(se exige {MINIMO_DENTRO:.0%}). Esto no parece el feed correcto.\n"
+            f"       Operadores encontrados: {operadores}\n"
+            f"       Revisa NAP_FILE_ID: el del FICHERO de Cantabria es 1560; "
+            f"1363 es el id del CONJUNTO, y como fichero es Menorca."
+        )
+
+
 def main() -> int:
     if len(sys.argv) < 2:
         print("Uso: python tools/build_interurbano.py <fichero_GTFS.zip>")
@@ -131,6 +172,8 @@ def main() -> int:
         f"{len(data['stop_times'])} con horarios, {len(data['calendar'])} services, "
         f"{len(data['removed'])} con excepciones"
     )
+
+    comprueba_region(data)
 
     payload = json.dumps(data, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
     for path in (DATA_PATH, ASSET_PATH):

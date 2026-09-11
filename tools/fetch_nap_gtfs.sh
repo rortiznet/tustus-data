@@ -8,7 +8,22 @@
 #
 # Variables de entorno:
 #   NAP_API_KEY   (obligatoria) ApiKey UUID del NAP
-#   NAP_FILE_ID   (opcional)    id del fichero GTFS; por defecto 1363
+#   NAP_FILE_ID   (opcional)    id del FICHERO GTFS; por defecto 1560
+#
+# OJO, aquí ya se metió la pata una vez: el NAP tiene DOS numeraciones
+# distintas y no coinciden.
+#
+#   conjuntoDatoId 1363 = "Autobús en Cantabria"  (lo que se ve en la web)
+#   ficheroId      1560 = su GTFS                 (lo que quiere esta API)
+#   ficheroId      1363 = GTFS de la isla de MENORCA
+#
+# Pasar el id del conjunto a /Fichero/download devuelve 200 y un ZIP válido,
+# solo que de otra provincia: entre julio y septiembre de 2026 esta Action
+# publicó los autobuses de Menorca como si fueran los de Cantabria, y ninguna
+# capa protestó. Para comprobar cuál es el fichero de un conjunto:
+#
+#   curl -H "ApiKey: $NAP_API_KEY" -H 'accept: application/json' \
+#        https://nap.transportes.gob.es/api/Fichero/GetList
 #                               (Autobús interurbano de Cantabria)
 #
 # Uso: tools/fetch_nap_gtfs.sh /tmp/bus_cantabria.zip
@@ -16,7 +31,7 @@ set -euo pipefail
 
 OUT="${1:?uso: fetch_nap_gtfs.sh <salida.zip>}"
 : "${NAP_API_KEY:?falta NAP_API_KEY (genérala en nap.transportes.gob.es → Editar Perfil)}"
-FILE_ID="${NAP_FILE_ID:-1363}"
+FILE_ID="${NAP_FILE_ID:-1560}"
 
 BASE="https://nap.transportes.gob.es/api"
 
