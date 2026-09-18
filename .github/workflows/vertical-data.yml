@@ -1,0 +1,51 @@
+# Actualiza el mapa itinerario -> tramos de los itinerarios verticales de
+# Santander con tools/build_vertical_itineraries.py; commitea
+# data/vertical-itineraries.json si cambió.
+#
+# Por qué hace falta precalcularlo: la pertenencia de una instalación a un
+# itinerario solo viene en el detalle de cada ficha, no en el listado, así que
+# la app tendría que pedir 87 fichas (~450 KB) para agrupar cuatro filas. El
+# script recorre esas 87 aquí, una vez por semana, y publica un JSON de 5 KB.
+#
+# No necesita ningún secreto: va contra el proxy público de la app
+# (moviuca-edge), que es quien guarda el token de SantanView. Por eso tampoco
+# le afecta que SantanView rechace user-agents automatizados, que fue un
+# problema al investigar esa API: quien habla con ellos es el proxy.
+#
+# Como las demás, escribe data/.last-run en cada ejecución (heartbeat): GitHub
+# pausa los schedules tras 60 días sin actividad y estos datos cambian poco.
+
+name: Actualizar itinerarios verticales
+
+on:
+  schedule:
+    - cron: '45 4 * * 1'      # lunes 04:45 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Reconstruir el mapa de itinerarios
+        run: python tools/build_vertical_itineraries.py
+
+      - name: Commit (datos + heartbeat)
+        run: |
+          date -u +%Y-%m-%dT%H:%M:%SZ > data/.last-run
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/vertical-itineraries.json data/.last-run
+          git diff --cached --quiet || git commit -m "data: actualizar itinerarios verticales"
+          git pull --rebase origin main
+          git push
