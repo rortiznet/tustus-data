@@ -65,11 +65,23 @@ RAIZ = pathlib.Path(__file__).resolve().parent.parent
 SALIDA_REMOTA = RAIZ / "data" / "vertical-itineraries.json"
 SALIDA_ASSET = RAIZ / "src" / "assets" / "vertical" / "itineraries.json"
 
-# El proxy limita a 120 lecturas por minuto y por IP. Con 87 fichas más el
-# listado vamos sobrados, pero se pacea para no acercarse al borde ni castigar
-# un servicio que es de otra persona.
-PAUSA_SEG = 0.4
+# El cuello de botella NO es nuestro proxy (120 lecturas/min por IP), sino
+# SantanView: su enfriamiento se aplica a **nuestro token entero**, no por
+# usuario. Medido el 21/9/2026 con una pausa de 0,4 s: las 76 primeras fichas
+# entraron y de la 77 en adelante todas devolvieron 502, porque el proxy
+# reenvía como 502 cualquier respuesta no-OK de arriba. La ejecución se cayó
+# entera, que es lo correcto —mejor eso que publicar un mapa al que le faltan
+# tramos— pero no hay que llegar ahí.
+#
+# Con 1,2 s son unos 105 s para las 87. Para un trabajo semanal da igual, y es
+# mucho más considerado con un servicio que es de otra persona.
+PAUSA_SEG = 1.2
 TIEMPO_ESPERA = 30
+
+# Reintentos por ficha, con espera creciente. Si aun así saltara el
+# enfriamiento, esperar medio minuto suele bastar para que nos vuelva a
+# atender; y si no, la ejecución falla sin escribir nada, como antes.
+ESPERAS_REINTENTO = (5, 15, 40)
 
 # Si un día la API deja de devolver itinerarios, es mejor no escribir nada que
 # publicar un mapa vacío que desagruparía la lista entera en la app.
@@ -77,9 +89,18 @@ MINIMO_ITINERARIOS = 15
 
 
 def pide(url: str) -> dict:
-    req = urllib.request.Request(url, headers={"Accept": "application/json"})
-    with urllib.request.urlopen(req, timeout=TIEMPO_ESPERA) as r:
-        return json.load(r)
+    """Una petición, reintentando si arriba nos han puesto en enfriamiento."""
+    ultimo: Exception | None = None
+    for espera in (0, *ESPERAS_REINTENTO):
+        if espera:
+            time.sleep(espera)
+        try:
+            req = urllib.request.Request(url, headers={"Accept": "application/json"})
+            with urllib.request.urlopen(req, timeout=TIEMPO_ESPERA) as r:
+                return json.load(r)
+        except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as e:
+            ultimo = e
+    raise ultimo  # type: ignore[misc]
 
 
 def main() -> int:
