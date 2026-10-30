@@ -10,6 +10,7 @@ ni publicar una nueva versión de la app.
 | `data/torrebici.json` | Estaciones de TorreBici (Torrelavega) | lunes 04:15 UTC ([workflow](.github/workflows/torrebici-data.yml)) |
 | `data/interurbano.json` | Horario GTFS del autobús interurbano de Cantabria (NAP) | lunes 04:30 UTC ([workflow](.github/workflows/interurbano-data.yml)) — requiere el secreto `NAP_API_KEY` (API oficial del NAP) |
 | `data/vertical-itineraries.json` | Qué tramos forma cada itinerario vertical de Santander, en orden de subida | lunes 04:45 UTC ([workflow](.github/workflows/vertical-data.yml)) |
+| `data/bahia.json` | Horarios de los barcos de la bahía de Santander (ALSA y Los Reginas) | a mano, cuando cambian (sin API: se transcriben de los PDF y de la web) con `tools/build_bahia.py` del repo de la app |
 
 Cada workflow solo commitea si el contenido cambió. `data/.last-run` es un
 heartbeat semanal para que GitHub no pause los schedules por inactividad (60 días).
