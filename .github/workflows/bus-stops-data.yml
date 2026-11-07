@@ -1,0 +1,45 @@
+# Actualiza las paradas y líneas del autobús urbano de Santander (TUS) con
+# tools/build_bus_stops.py; commitea data/bus-stops.json si cambió.
+#
+# Por qué: la app las sacaba de datos.santander.es, que en noviembre de 2026
+# pasó más de una semana sin responder y dejó sin paradas a quien instalaba la
+# app. La fuente ahora es el GTFS oficial de TUS (el del NAP), en la copia que
+# Mobility Database sirve sin clave. No necesita ningún secreto.
+#
+# Como las demás, escribe data/.last-run en cada ejecución (heartbeat): GitHub
+# pausa los schedules tras 60 días sin actividad.
+
+name: Actualizar paradas del bus urbano
+
+on:
+  schedule:
+    - cron: '0 5 * * 1'       # lunes 05:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Reconstruir paradas y líneas
+        run: python tools/build_bus_stops.py
+
+      - name: Commit (datos + heartbeat)
+        run: |
+          date -u +%Y-%m-%dT%H:%M:%SZ > data/.last-run
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/bus-stops.json data/.last-run
+          git diff --cached --quiet || git commit -m "data: actualizar paradas del bus urbano"
+          git pull --rebase origin main
+          git push
